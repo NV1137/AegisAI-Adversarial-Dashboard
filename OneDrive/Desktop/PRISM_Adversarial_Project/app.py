@@ -159,6 +159,7 @@ if mode == "Dashboard":
         st.warning("Attack Failed ⚠️")
 
 # ====================== RUN ATTACK ======================
+# ====================== RUN ATTACK ======================
 elif mode == "Run Attack":
 
     st.title("⚡ Run Adversarial Attack")
@@ -166,7 +167,13 @@ elif mode == "Run Attack":
     image = None
 
     if use_sample:
-        image = Image.open("sample.jpg").convert("RGB")
+        import os
+
+        BASE_DIR = os.path.dirname(__file__)
+        sample_path = os.path.join(BASE_DIR, "sample.jpg")
+
+        image = Image.open(sample_path).convert("RGB")   # ✅ FIXED INDENT
+
     else:
         uploaded = st.file_uploader("Upload Image")
         if uploaded:
