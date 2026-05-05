@@ -4,6 +4,7 @@ from PIL import Image
 import numpy as np
 import urllib.request
 import matplotlib.pyplot as plt
+import os
 
 from models.resnet import load_model
 from src.preprocess import preprocess_image
@@ -14,49 +15,38 @@ st.set_page_config(page_title="AegisAI Dashboard", layout="wide")
 # ---------------------- FULL DARK UI ----------------------
 st.markdown("""
 <style>
-
-/* FULL BACKGROUND */
 html, body, .stApp {
     background-color: #0a192f !important;
     color: white !important;
 }
-
-/* REMOVE HEADER */
 header {visibility: hidden;}
 .block-container {padding-top: 1rem;}
 
-/* SIDEBAR */
 section[data-testid="stSidebar"] {
     background-color: #112240 !important;
 }
 
-/* TEXT */
 h1, h2, h3, h4, h5, h6, p, span {
     color: white !important;
 }
 
-/* CARDS */
 .card {
     background-color: #112240;
     padding: 20px;
     border-radius: 12px;
-    box-shadow: 0px 0px 15px rgba(0,0,0,0.3);
 }
 
-/* BUTTON */
 .stButton>button {
     background-color: #1f6feb;
     color: white;
     border-radius: 8px;
 }
 
-/* UPLOADER */
 .stFileUploader {
     background-color: #112240;
     border-radius: 10px;
     padding: 10px;
 }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -75,7 +65,7 @@ def load_labels():
 
 labels = load_labels()
 
-# ---------------------- FGSM ATTACK ----------------------
+# ---------------------- ATTACK ----------------------
 def fgsm_attack(model, image, epsilon, target_class=None):
     image = image.clone().detach().requires_grad_(True)
 
@@ -136,7 +126,7 @@ if mode == "Dashboard":
     st.markdown("---")
 
     if "orig_out" not in st.session_state:
-        st.warning("⚠️ Run an attack first to see results.")
+        st.warning("⚠️ Run an attack first.")
         st.stop()
 
     orig_out = st.session_state["orig_out"]
@@ -153,12 +143,6 @@ if mode == "Dashboard":
     </div>
     """, unsafe_allow_html=True)
 
-    if orig_class != adv_class:
-        st.success("Attack Successful ✅")
-    else:
-        st.warning("Attack Failed ⚠️")
-
-# ====================== RUN ATTACK ======================
 # ====================== RUN ATTACK ======================
 elif mode == "Run Attack":
 
@@ -166,19 +150,28 @@ elif mode == "Run Attack":
 
     image = None
 
+    # -------- SAMPLE IMAGE AUTO LOAD (FIXED) --------
     if use_sample:
-        import os
-
         BASE_DIR = os.path.dirname(__file__)
-        sample_path = os.path.join(BASE_DIR, "sample.jpg")
+        sample_path = None
 
-        image = Image.open(sample_path).convert("RGB")   # ✅ FIXED INDENT
+        for file in os.listdir(BASE_DIR):
+            if file.lower().startswith("sample"):
+                sample_path = os.path.join(BASE_DIR, file)
+                break
 
+        if sample_path:
+            image = Image.open(sample_path).convert("RGB")
+        else:
+            st.error("Sample image not found. Upload manually.")
+
+    # -------- UPLOAD --------
     else:
         uploaded = st.file_uploader("Upload Image")
         if uploaded:
             image = Image.open(uploaded).convert("RGB")
 
+    # -------- PROCESS --------
     if image:
         st.image(image, caption="Input Image", width=250)
 
@@ -199,13 +192,13 @@ elif mode == "Run Attack":
                 adv_out = model(adv_img)
                 adv_class = labels[adv_out.argmax().item()]
 
-            # SAVE
+            # SAVE STATE
             st.session_state["orig_out"] = orig_out
             st.session_state["adv_out"] = adv_out
             st.session_state["orig_class"] = orig_class
             st.session_state["adv_class"] = adv_class
 
-            # SHOW IMAGES
+            # IMAGES
             col1, col2 = st.columns(2)
 
             col1.image(input_tensor.squeeze().permute(1,2,0).detach().numpy(), caption="Original")
@@ -241,7 +234,6 @@ elif mode == "Run Attack":
 
             orig_vals = [float(orig_probs[i]) for i in combined]
             adv_vals = [float(adv_probs[i]) for i in combined]
-
             names = [labels[i] for i in combined]
 
             x = np.arange(len(names))
